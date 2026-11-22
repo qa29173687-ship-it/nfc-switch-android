@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">NFC 付款切換</string>
+    <string name="widget_label">NFC 付款切換</string>
+    <string name="widget_desc">兩個大按鈕，打開系統「預設感應付款」頁，選錢包或 Google 錢包</string>
+    <string name="tile_label">NFC 付款切換</string>
+    <string name="notif_channel">提醒</string>
+    <string name="notif_title">記得切回門禁</string>
+    <string name="notif_text">你先前改成 Google 錢包付款。點一下可回到設定頁，改回錢包（門禁）。</string>
+    <string name="notif_action">打開感應付款設定</string>
+</resources>
