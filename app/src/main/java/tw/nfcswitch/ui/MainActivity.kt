@@ -3,27 +3,27 @@ package tw.nfcswitch.ui
 import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import tw.nfcswitch.Choice
-import tw.nfcswitch.NfcStatus
 import tw.nfcswitch.NfcStatusReader
 import tw.nfcswitch.PaySettingsActivity
+import tw.nfcswitch.PaymentDefault
+import tw.nfcswitch.PaymentDefaults
 import tw.nfcswitch.Prefs
-import tw.nfcswitch.SettingsOpener
+import tw.nfcswitch.RemindPolicy
+import tw.nfcswitch.SettingsIntents
 import tw.nfcswitch.remind.Notifier
-import tw.nfcswitch.remind.RemindScheduler
 import tw.nfcswitch.widget.NfcSwitchWidgetReceiver
 
 class MainActivity : ComponentActivity() {
@@ -36,21 +36,22 @@ class MainActivity : ComponentActivity() {
     @androidx.compose.runtime.Composable
     private fun AppRoot() {
         val prefs = remember { Prefs(this) }
-        var lastChoice by remember { mutableStateOf(prefs.lastChoice) }
+        var payment by remember { mutableStateOf<PaymentDefault>(PaymentDefaults.read(this)) }
         var remind by remember { mutableStateOf(prefs.remindEnabled) }
         var minutes by remember { mutableStateOf(prefs.remindMinutes) }
         var nfc by remember { mutableStateOf(NfcStatusReader.read(this)) }
-        var diagnostics by remember { mutableStateOf(prefs.lastLaunch) }
+        var diagnostics by remember { mutableStateOf(prefs.diagnosticsText(payment)) }
         var canNotify by remember { mutableStateOf(Notifier.canPost(this)) }
         var toast by remember { mutableStateOf<String?>(null) }
 
         fun refresh() {
-            lastChoice = prefs.lastChoice
+            payment = PaymentDefaults.read(this)
             remind = prefs.remindEnabled
             minutes = prefs.remindMinutes
             nfc = NfcStatusReader.read(this)
-            diagnostics = prefs.lastLaunch
+            diagnostics = prefs.diagnosticsText(payment)
             canNotify = Notifier.canPost(this)
+            PaymentDefaults.syncUi(this)
         }
 
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
@@ -62,19 +63,8 @@ class MainActivity : ComponentActivity() {
             if (!granted) toast = "沒有通知權限的話，提醒不會出現。可到系統設定開啟。"
         }
 
-        fun recordAndOpenPayment(choice: String) {
-            prefs.lastChoice = choice
-            lastChoice = choice
-            RemindScheduler.applyChoice(this, choice)
-            val result = SettingsOpener.openPayment(this)
-            diagnostics = result.diagnosticsLine()
-            if (!result.ok) toast = "打不開設定，請看下面的診斷資訊"
-        }
-
-        fun openNfcSettings() {
-            val result = SettingsOpener.openNfc(this)
-            diagnostics = result.diagnosticsLine()
-            if (!result.ok) toast = "打不開 NFC 設定，請看下面的診斷資訊"
+        fun open(kind: String) {
+            startActivity(PaySettingsActivity.intent(this, kind).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
 
         fun setRemind(on: Boolean) {
@@ -83,7 +73,7 @@ class MainActivity : ComponentActivity() {
             if (on && Build.VERSION.SDK_INT >= 33 && !Notifier.canPost(this)) {
                 permLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
-            if (on) RemindScheduler.arm(this) else RemindScheduler.cancel(this)
+            if (!on) tw.nfcswitch.remind.RemindScheduler.cancel(this)
         }
 
         fun pinWidget() {
@@ -98,23 +88,18 @@ class MainActivity : ComponentActivity() {
 
         MainScreen(
             nfc = nfc,
-            lastChoice = lastChoice,
-            lastChoiceLabel = Choice.label(lastChoice),
+            payment = payment,
+            showReminder = RemindPolicy.shouldShowReminder(payment.kind),
             remindEnabled = remind,
             remindMinutes = minutes,
             canNotify = canNotify,
-            diagnostics = diagnostics.ifBlank { "還沒打開過設定" },
-            onOpenNfc = { openNfcSettings() },
-            onOpenPayment = {
-                startActivity(PaySettingsActivity.intent(this).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-            },
-            onPickWallet = { recordAndOpenPayment(Choice.WALLET) },
-            onPickGoogle = { recordAndOpenPayment(Choice.GOOGLE) },
+            diagnostics = diagnostics,
+            onOpenNfc = { open(SettingsIntents.KIND_NFC) },
+            onOpenPayment = { open(SettingsIntents.KIND_PAYMENT) },
             onRemindChange = { setRemind(it) },
             onMinutesChange = {
                 prefs.remindMinutes = it
                 minutes = prefs.remindMinutes
-                if (remind) RemindScheduler.arm(this)
             },
             onPinWidget = { pinWidget() },
             message = toast,

@@ -18,16 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -38,22 +34,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import tw.nfcswitch.Choice
 import tw.nfcswitch.NfcStatus
+import tw.nfcswitch.PaymentDefault
+import tw.nfcswitch.PaymentKind
+import tw.nfcswitch.RemindPolicy
 
 @Composable
 fun MainScreen(
     nfc: NfcStatus,
-    lastChoice: String?,
-    lastChoiceLabel: String,
+    payment: PaymentDefault,
+    showReminder: Boolean,
     remindEnabled: Boolean,
     remindMinutes: Int,
     canNotify: Boolean,
     diagnostics: String,
     onOpenNfc: () -> Unit,
     onOpenPayment: () -> Unit,
-    onPickWallet: () -> Unit,
-    onPickGoogle: () -> Unit,
     onRemindChange: (Boolean) -> Unit,
     onMinutesChange: (Int) -> Unit,
     onPinWidget: () -> Unit,
@@ -66,6 +62,12 @@ fun MainScreen(
             Toast.makeText(ctx, message, Toast.LENGTH_LONG).show()
             onMessageShown()
         }
+    }
+    val statusColor = when (payment.kind) {
+        PaymentKind.OPPO_WALLET -> GreenDeep
+        PaymentKind.GOOGLE_WALLET -> BlueDeep
+        PaymentKind.UNREADABLE -> Amber
+        PaymentKind.OTHER -> Ink
     }
     Scaffold(
         containerColor = Sheet,
@@ -110,42 +112,23 @@ fun MainScreen(
             }
 
             Card {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("上次選擇", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.width(8.dp))
-                    HintTag("示意")
-                }
+                Text("目前的預設", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    lastChoiceLabel,
+                    payment.statusText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = when (lastChoice) {
-                        Choice.WALLET -> GreenDeep
-                        Choice.GOOGLE -> BlueDeep
-                        else -> Ink
-                    },
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    color = statusColor,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 14.dp)
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ChoiceBtn(
-                        title = "刷門禁",
-                        sub = "OPPO 錢包",
-                        bg = GreenSoft,
-                        fg = GreenDeep,
-                        modifier = Modifier.weight(1f),
-                        onClick = onPickWallet
-                    )
-                    ChoiceBtn(
-                        title = "付款",
-                        sub = "Google 錢包",
-                        bg = BlueSoft,
-                        fg = BlueDeep,
-                        modifier = Modifier.weight(1f),
-                        onClick = onPickGoogle
-                    )
-                }
-                TextButton(onClick = onOpenPayment, modifier = Modifier.fillMaxWidth()) {
-                    Text("只打開「預設感應付款」設定", fontWeight = FontWeight.Bold, color = GreenDeep)
+                Surface(
+                    onClick = onOpenPayment,
+                    shape = RoundedCornerShape(20.dp),
+                    color = GreenSoft,
+                    modifier = Modifier.fillMaxWidth().height(88.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Text("切換 NFC 付款", color = GreenDeep, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    }
                 }
             }
 
@@ -171,55 +154,66 @@ fun MainScreen(
             }
 
             Card {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("提醒", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Ink)
-                        Text("切到 Google 錢包後，提醒我切回門禁", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                if (showReminder) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("提醒", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Ink)
+                            Text("切到 Google 錢包後，提醒我切回門禁", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                        }
+                        Switch(
+                            checked = remindEnabled,
+                            onCheckedChange = onRemindChange,
+                            colors = SwitchDefaults.colors(checkedTrackColor = Green, checkedThumbColor = Color.White)
+                        )
                     }
-                    Switch(
-                        checked = remindEnabled,
-                        onCheckedChange = onRemindChange,
-                        colors = SwitchDefaults.colors(checkedTrackColor = Green, checkedThumbColor = Color.White)
-                    )
-                }
-                if (remindEnabled) {
-                    Spacer(Modifier.height(8.dp))
-                    Text("提醒時間", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Choice.REMIND_MINUTES.forEach { m ->
-                            val on = m == remindMinutes
-                            Surface(
-                                onClick = { onMinutesChange(m) },
-                                shape = RoundedCornerShape(50),
-                                color = if (on) GreenSoft else Sheet,
-                                modifier = Modifier.weight(1f).height(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                    Text(
-                                        "$m 分鐘",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = if (on) GreenDeep else Ink
-                                    )
+                    if (remindEnabled) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("提醒時間", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            RemindPolicy.MINUTES.forEach { m ->
+                                val on = m == remindMinutes
+                                Surface(
+                                    onClick = { onMinutesChange(m) },
+                                    shape = RoundedCornerShape(50),
+                                    color = if (on) GreenSoft else Sheet,
+                                    modifier = Modifier.weight(1f).height(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                        Text(
+                                            "$m 分鐘",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = if (on) GreenDeep else Ink
+                                        )
+                                    }
                                 }
                             }
                         }
+                        if (!canNotify) {
+                            Text(
+                                "目前沒有通知權限，提醒時間到了也不會出現通知。請到系統設定允許通知。",
+                                color = Amber,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 8.dp),
+                                lineHeight = 18.sp
+                            )
+                        }
                     }
-                    if (!canNotify) {
-                        Text(
-                            "目前沒有通知權限，提醒時間到了也不會出現通知。請到系統設定允許通知。",
-                            color = Amber,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 8.dp),
-                            lineHeight = 18.sp
-                        )
-                    }
+                } else {
+                    Text("提醒", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Ink)
+                    Text(
+                        "目前讀不到系統的預設付款應用程式，所以無法在切到 Google 錢包後自動提醒。若之後讀得到，這裡會再出現。",
+                        color = Muted,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
                 }
             }
 
             Text(
-                "診斷（系統有沒有接下這個動作，不是設定有沒有改成功）",
+                "診斷（系統有沒有接下這個動作，以及讀到的預設付款元件）",
                 color = Muted,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
@@ -254,20 +248,6 @@ private fun Banner(text: String) {
 }
 
 @Composable
-private fun HintTag(text: String) {
-    Text(
-        text,
-        color = Amber,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.ExtraBold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(AmberBg)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    )
-}
-
-@Composable
 private fun Card(content: @Composable () -> Unit) {
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -276,31 +256,5 @@ private fun Card(content: @Composable () -> Unit) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp), content = { content() })
-    }
-}
-
-@Composable
-private fun ChoiceBtn(
-    title: String,
-    sub: String,
-    bg: Color,
-    fg: Color,
-    modifier: Modifier,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = bg,
-        modifier = modifier.height(96.dp)
-    ) {
-        Column(
-            Modifier.fillMaxSize().padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(title, color = fg, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-            Text(sub, color = fg.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-        }
     }
 }

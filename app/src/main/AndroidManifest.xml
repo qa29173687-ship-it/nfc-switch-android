@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 側載用：讀取目前預設付款 App 的名稱（PackageManager） -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
     <queries>
@@ -10,6 +14,11 @@
         <intent><action android:name="android.settings.NFC_SETTINGS" /></intent>
         <intent><action android:name="android.settings.WIRELESS_SETTINGS" /></intent>
         <intent><action android:name="android.settings.SETTINGS" /></intent>
+        <package android:name="com.finshell.wallet" />
+        <package android:name="com.coloros.wallet" />
+        <package android:name="com.heytap.wallet" />
+        <package android:name="com.google.android.apps.walletnfcrel" />
+        <package android:name="com.google.android.gms" />
     </queries>
 
     <application
@@ -30,11 +39,11 @@
             </intent-filter>
         </activity>
 
+        <!-- 不可設 noHistory：要等系統設定頁回來後再讀目前預設、更新小工具 -->
         <activity
             android:name=".PaySettingsActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:taskAffinity="tw.nfcswitch.settings"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 

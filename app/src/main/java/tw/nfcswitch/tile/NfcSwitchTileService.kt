@@ -7,20 +7,24 @@ import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import tw.nfcswitch.Choice
 import tw.nfcswitch.PaySettingsActivity
-import tw.nfcswitch.Prefs
+import tw.nfcswitch.PaymentDefaults
+import tw.nfcswitch.PaymentKind
 
 class NfcSwitchTileService : TileService() {
 
     override fun onStartListening() {
         super.onStartListening()
         val tile = qsTile ?: return
-        val last = Prefs(this).lastChoice
+        val current = PaymentDefaults.read(this)
         tile.state = Tile.STATE_INACTIVE
         tile.label = "NFC 付款切換"
         if (Build.VERSION.SDK_INT >= 29) {
-            tile.subtitle = if (last == null) "打開感應付款設定" else "上次選擇：${Choice.label(last)}"
+            tile.subtitle = if (current.kind == PaymentKind.UNREADABLE) {
+                "目前：無法讀取"
+            } else {
+                current.statusText
+            }
         }
         tile.updateTile()
     }
